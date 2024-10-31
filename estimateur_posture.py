@@ -1,5 +1,5 @@
 import numpy as np            # Importation de la bibliothèque NumPy pour les opérations mathématiques avancées
-import cv2                    # Importation de la bibliothèque OpenCV pour le traitement d'images et de vidéos
+import cv2                    # Importation de la bibliothèque OpenCV pour le traitement d'images
 import mediapipe as mp        # Importation de MediaPipe pour la détection et le suivi des poses humaines
 
 # VARIABLES GLOBALES ----------------------------------------------------------------------------------------------------------
@@ -301,35 +301,3 @@ def estimateur(image):
             return result
 
     return result  # Retourner le résultat de l'analyse
-
-# GESTION DU FLUX VIDÉO ------------------------------------------------------------------------------------------------------
-
-def main():
-    """
-    Fonction principale pour gérer le flux vidéo et appliquer l'analyse de posture à chaque image.
-    """
-    cap = cv2.VideoCapture(0)  # Ouverture de la webcam (remplacer par 'video.mp4' pour un fichier vidéo)
-    if not cap.isOpened():
-        print("Erreur: Impossible d'accéder à la vidéo.")  # Message d'erreur si la vidéo n'est pas accessible
-        return
-
-    while True:
-        ret, frame = cap.read()  # Lecture d'une image du flux vidéo
-        if not ret:
-            print("Fin de la vidéo ou erreur de lecture.")  # Fin de la vidéo ou erreur lors de la lecture
-            break
-
-        result = estimateur(frame)  # Appel de la fonction estimateur pour analyser la posture dans l'image
-
-        cv2.imshow('Estimation Posture', frame)  # Affichage de l'image avec les annotations
-
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break  # Quitter la boucle si la touche 'q' est pressée
-
-    cap.release()  # Libération des ressources associées au flux vidéo
-    cv2.destroyAllWindows()  # Fermeture de toutes les fenêtres OpenCV
-
-# POINT D'ENTRÉE DU SCRIPT ---------------------------------------------------------------------------------------------------
-
-if __name__ == "__main__":
-    main()  # Appel de la fonction principale pour démarrer le programme
