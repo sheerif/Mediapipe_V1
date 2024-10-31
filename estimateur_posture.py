@@ -68,9 +68,9 @@ recuperation_musculaire_thresholds = {
 
 # Seuils pour l'effort de préhension
 effort_prehension_thresholds = {
-    'verte': (0, 50),              # Moins de 50% du temps
-    'orange': (25, 50),            # Entre 25% et 50%
-    'rouge': (0, 25)               # Moins de 25%
+    'verte': (50, float('inf')),   # Plus de 50% du temps (effort faible)
+    'orange': (25, 50),            # Entre 25% et 50% du temps (effort modéré)
+    'rouge': (0, 25)               # Moins de 25% du temps (effort élevé)
 }
 
 # FONCTIONS UTILITAIRES -------------------------------------------------------------------------------------------------------
@@ -81,7 +81,7 @@ def calculate_image_quality(image):
     Utilisé pour ajuster la complexité du modèle MediaPipe.
     """
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)  # Conversion en niveaux de gris
-    brightness = np.mean(gray) / 255.0              # Calcul de la luminosité moyenne normalisée
+    brightness = np.mean(gray) / 255.0              # Calcul de la luminosité moyenne normalisée (entre 0 et 1)
     sharpness = cv2.Laplacian(gray, cv2.CV_64F).var() / 100.0  # Calcul de la netteté (variance du Laplacien)
     # Combinaison de la luminosité et de la netteté pour obtenir un score de qualité entre 0 et 1
     quality = min(1.0, max(0.0, 0.5 * brightness + 0.5 * (sharpness / (sharpness + 1))))
@@ -92,12 +92,21 @@ def calculate_angle(a, b, c):
     Calculer l'angle en degrés formé par trois points a, b, c.
     L'angle est au point b entre les segments ba et bc.
     """
-    ba = np.array(a) - np.array(b)  # Vecteur de b à a
-    bc = np.array(c) - np.array(b)  # Vecteur de b à c
-    # Calcul du cosinus de l'angle à l'aide du produit scalaire
-    cos_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
-    # Conversion du cosinus en angle en degrés, en s'assurant que la valeur est dans [-1, 1]
-    angle = int(np.degrees(np.arccos(np.clip(cos_angle, -1.0, 1.0))))
+    ba = np.array(a) - np.array(b)  # Vecteur ba (de b à a)
+    bc = np.array(c) - np.array(b)  # Vecteur bc (de b à c)
+    # Calcul du produit scalaire et des normes des vecteurs
+    dot_product = np.dot(ba, bc)
+    norm_ba = np.linalg.norm(ba)
+    norm_bc = np.linalg.norm(bc)
+    # Vérification pour éviter une division par zéro
+    if norm_ba == 0 or norm_bc == 0:
+        return 0
+    # Calcul du cosinus de l'angle
+    cos_angle = dot_product / (norm_ba * norm_bc)
+    # Limitation du cosinus pour éviter les erreurs numériques
+    cos_angle = np.clip(cos_angle, -1.0, 1.0)
+    # Conversion en angle en degrés
+    angle = int(np.degrees(np.arccos(cos_angle)))
     return angle
 
 def preprocess_image(image):
@@ -121,37 +130,43 @@ def classify_angle(angle, thresholds):
         return 2  # Zone orange : angle dans la plage à surveiller
     elif angle >= thresholds['red'][0]:
         return 3  # Zone rouge : angle dans la plage à éviter
-    return 0  # Non classé : angle hors des plages définies
+    else:
+        return 0  # Non classé : angle hors des plages définies
 
 def extract_keypoints(landmarks):
     """
     Extraire les points clés nécessaires des landmarks détectés par MediaPipe.
     Renvoie un dictionnaire avec les coordonnées normalisées (entre 0 et 1).
     """
-    def get_landmark_value(landmark, default=(0, 0)):
-        return [landmark.x, landmark.y] if landmark else default
+    def get_landmark_value(landmark):
+        if landmark:
+            return [landmark.x, landmark.y]
+        else:
+            return None
 
     # Extraction des coordonnées des points clés
     keypoints = {
-        'shoulder_left': get_landmark_value(landmarks[mp_holistic.PoseLandmark.LEFT_SHOULDER]),
-        'elbow_left': get_landmark_value(landmarks[mp_holistic.PoseLandmark.LEFT_ELBOW]),
-        'wrist_left': get_landmark_value(landmarks[mp_holistic.PoseLandmark.LEFT_WRIST]),
-        'shoulder_right': get_landmark_value(landmarks[mp_holistic.PoseLandmark.RIGHT_SHOULDER]),
-        'elbow_right': get_landmark_value(landmarks[mp_holistic.PoseLandmark.RIGHT_ELBOW]),
-        'wrist_right': get_landmark_value(landmarks[mp_holistic.PoseLandmark.RIGHT_WRIST]),
-        'neck': [
-            (landmarks[mp_holistic.PoseLandmark.LEFT_SHOULDER].x +
-             landmarks[mp_holistic.PoseLandmark.RIGHT_SHOULDER].x) / 2,
-            (landmarks[mp_holistic.PoseLandmark.LEFT_SHOULDER].y +
-             landmarks[mp_holistic.PoseLandmark.RIGHT_SHOULDER].y) / 2
-        ],
-        'chest': [
-            (landmarks[mp_holistic.PoseLandmark.LEFT_SHOULDER].x +
-             landmarks[mp_holistic.PoseLandmark.RIGHT_SHOULDER].x) / 2,
-            (landmarks[mp_holistic.PoseLandmark.LEFT_SHOULDER].y +
-             landmarks[mp_holistic.PoseLandmark.RIGHT_SHOULDER].y) / 2
-        ],
+        'shoulder_left': get_landmark_value(landmarks[mp_holistic.PoseLandmark.LEFT_SHOULDER.value]),
+        'elbow_left': get_landmark_value(landmarks[mp_holistic.PoseLandmark.LEFT_ELBOW.value]),
+        'wrist_left': get_landmark_value(landmarks[mp_holistic.PoseLandmark.LEFT_WRIST.value]),
+        'shoulder_right': get_landmark_value(landmarks[mp_holistic.PoseLandmark.RIGHT_SHOULDER.value]),
+        'elbow_right': get_landmark_value(landmarks[mp_holistic.PoseLandmark.RIGHT_ELBOW.value]),
+        'wrist_right': get_landmark_value(landmarks[mp_holistic.PoseLandmark.RIGHT_WRIST.value]),
     }
+
+    # Calcul du point du cou (milieu des épaules)
+    left_shoulder = keypoints['shoulder_left']
+    right_shoulder = keypoints['shoulder_right']
+
+    if left_shoulder and right_shoulder:
+        neck = [
+            (left_shoulder[0] + right_shoulder[0]) / 2,
+            (left_shoulder[1] + right_shoulder[1]) / 2
+        ]
+        keypoints['neck'] = neck
+    else:
+        keypoints['neck'] = None
+
     return keypoints
 
 def display_results(image, presence_personne, ergonomic_indicator, risk_zone, result):
@@ -159,13 +174,13 @@ def display_results(image, presence_personne, ergonomic_indicator, risk_zone, re
     Afficher les résultats de l'analyse sur l'image en superposant du texte.
     """
     # Affichage de la présence d'une personne détectée
-    cv2.putText(image, f'Presence personne: {presence_personne}', (10, 30),
+    cv2.putText(image, f'Présence personne: {presence_personne}', (10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
     # Affichage de l'indicateur ergonomique et de la zone de risque
-    cv2.putText(image, f'Ergonomic Indicator: {ergonomic_indicator} (Zone {risk_zone})', (10, 70),
+    cv2.putText(image, f'Indicateur Ergonomique: {ergonomic_indicator} (Zone {risk_zone})', (10, 70),
                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
     # Affichage du résultat détaillé
-    cv2.putText(image, f'Result: {result}', (10, 110),
+    cv2.putText(image, f'Résultat: {result}', (10, 110),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
 def detect_actions_techniques_in_image(image):
@@ -233,11 +248,11 @@ def estimateur(image):
             # Vérification de la validité des points clés extraits
             for key, value in keypoints.items():
                 if value is None or not isinstance(value, list) or len(value) != 2:
-                    print(f"Erreur: Point clé {key} invalide ou manquant.")
+                    print(f"Erreur: Point clé '{key}' invalide ou manquant.")
                     return result  # Retourner le résultat par défaut en cas d'erreur
 
             required_keys = ['neck', 'shoulder_left', 'shoulder_right']
-            if not all(key in keypoints for key in required_keys):
+            if not all(keypoints[key] is not None for key in required_keys):
                 print("Erreur: Points clés manquants. Impossible de continuer l'analyse.")
                 return result
 
@@ -252,7 +267,7 @@ def estimateur(image):
             ergonomic_indicator = flexion_cou_score
 
             # Détermination de la zone de risque globale
-            risk_zone = 1 if ergonomic_indicator < 16 else 2 if ergonomic_indicator <= 25 else 3
+            risk_zone = 1 if ergonomic_indicator == 1 else 2 if ergonomic_indicator == 2 else 3
 
             # Détection des actions techniques dans l'image originale
             detected_actions = detect_actions_techniques_in_image(image_original)
@@ -282,7 +297,7 @@ def estimateur(image):
             return result
         except Exception as e:
             # Gestion des autres exceptions éventuelles
-            print(f"Error during image processing: {e}")
+            print(f"Erreur lors du traitement de l'image: {e}")
             return result
 
     return result  # Retourner le résultat de l'analyse
@@ -293,7 +308,7 @@ def main():
     """
     Fonction principale pour gérer le flux vidéo et appliquer l'analyse de posture à chaque image.
     """
-    cap = cv2.VideoCapture('video.mp4')  # Ouverture du fichier vidéo (remplacer par 0 pour la webcam)
+    cap = cv2.VideoCapture(0)  # Ouverture de la webcam (remplacer par 'video.mp4' pour un fichier vidéo)
     if not cap.isOpened():
         print("Erreur: Impossible d'accéder à la vidéo.")  # Message d'erreur si la vidéo n'est pas accessible
         return
