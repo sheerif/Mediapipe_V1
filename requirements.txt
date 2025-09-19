@@ -1,0 +1,7 @@
+# Requirements for MediaPipe V1 Project
+numpy>=1.21.0
+opencv-python>=4.5.0
+mediapipe>=0.8.0
+paramiko>=2.7.0
+termcolor>=1.1.0
+openni2-python>=1.0.0

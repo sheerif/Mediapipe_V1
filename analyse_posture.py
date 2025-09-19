@@ -1,5 +1,11 @@
+"""
+MediaPipe V1 - Analyse de Posture (Example Script)
+Version: 1.0 (Last Version)
+Description: Script d'exemple pour tester l'analyse de posture sur une image
+"""
+
 import cv2
-from analyse_posture import estimateur
+from estimateur_posture import estimateur
 
 # Charger une image depuis un fichier
 image = cv2.imread('chemin/vers/votre/image.jpg')

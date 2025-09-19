@@ -1,3 +1,9 @@
+"""
+MediaPipe V1 - Estimateur de Posture
+Version: 1.0 (Last Version)  
+Description: Module d'analyse de posture utilisant MediaPipe pour l'ergonomie
+"""
+
 import numpy as np            # Importation de la bibliothèque NumPy pour les opérations mathématiques avancées
 import cv2                    # Importation de la bibliothèque OpenCV pour le traitement d'images
 import mediapipe as mp        # Importation de MediaPipe pour la détection et le suivi des poses humaines

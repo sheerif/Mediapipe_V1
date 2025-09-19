@@ -1,4 +1,9 @@
 #!/usr/bin/python
+"""
+MediaPipe V1 - Recording Script
+Version: 1.0 (Last Version)
+Description: Script principal pour la capture et l'analyse de posture en temps réel
+"""
 
 # Bibliothèques **************************************************
 import subprocess             # Pour exécuter des commandes système
@@ -44,8 +49,13 @@ def fct_periodique_1s():
                 recordingstr = "yes"
                 filename = record()  # Capture d'une image
                 if filename != "":
-                    # Analyse de l'image capturée
-                    result_analyse = estimateur([filename])
+                    # Chargement et analyse de l'image capturée
+                    image = cv2.imread(filename)
+                    if image is not None:
+                        result_analyse = estimateur(image)
+                    else:
+                        logging.error(f"Impossible de charger l'image {filename}")
+                        result_analyse = "_0_0_0_0_0_0_0_0_0_"
                     # Suppression de l'image après analyse pour économiser l'espace disque
                     try:
                         os.remove(filename)
@@ -92,6 +102,10 @@ def record():
         # Génération du nom de fichier avec la date et l'heure actuelles
         now = datetime.now()
         date = now.strftime("%d_%m_%Y_%H_%M_%S_%f")
+        
+        # Création du répertoire de sauvegarde s'il n'existe pas
+        os.makedirs(REPERTOIRE_SAUVEGARDE, exist_ok=True)
+        
         filename = f"{REPERTOIRE_SAUVEGARDE}img_{date}.jpg"
         # Sauvegarde de l'image
         cv2.imwrite(filename, color_img)
